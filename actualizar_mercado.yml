@@ -1,0 +1,61 @@
+name: Actualizar datos del mercado
+
+# GitHub Actions programa siempre en UTC y no ajusta el horario de verano, así
+# que se declaran DOS cron a las 09:00 hora de España (invierno y verano) y el
+# primer paso comprueba la hora real en Madrid para ejecutar solo el que
+# corresponda ese día. Así siempre corre una única vez, a las 09:00 en punto
+# en España, todo el año.
+on:
+  schedule:
+    - cron: "0 8 * * *" # 09:00 CET (horario de invierno, UTC+1)
+    - cron: "0 7 * * *" # 09:00 CEST (horario de verano, UTC+2)
+  workflow_dispatch: {} # permite lanzarlo también a mano desde GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar si son las 09:00 en España ahora mismo
+        id: comprobacion
+        run: |
+          HORA_MADRID=$(TZ="Europe/Madrid" date +%H)
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$HORA_MADRID" != "09" ]; then
+            echo "Son las ${HORA_MADRID}:00 en España; no toca ejecutar este cron (es el del otro horario), se omite."
+            echo "ejecutar=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ejecutar=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Descargar el repositorio
+        if: steps.comprobacion.outputs.ejecutar == 'true'
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        if: steps.comprobacion.outputs.ejecutar == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        if: steps.comprobacion.outputs.ejecutar == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar buscar_depositos.py
+        if: steps.comprobacion.outputs.ejecutar == 'true'
+        run: python buscar_depositos.py
+
+      - name: Subir depositos_activos.csv y analisis_estrategico.txt si han cambiado
+        if: steps.comprobacion.outputs.ejecutar == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add depositos_activos.csv analisis_estrategico.txt
+          if git diff --cached --quiet; then
+            echo "Sin cambios en los datos, no se crea commit."
+          else
+            git commit -m "Actualización automática del mercado ($(TZ='Europe/Madrid' date '+%d/%m/%Y %H:%M'))"
+            git push
+          fi

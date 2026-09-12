@@ -4,15 +4,18 @@ App web (Streamlit) que muestra, en formato de tarjetas pensado para móvil,
 los depósitos a plazo fijo puros y las Letras del Tesoro generados por
 buscar_depositos.py, además del informe del "Asesor Financiero".
 
+Los datos se actualizan solos: el flujo de GitHub Actions en
+.github/workflows/actualizar_mercado.yml ejecuta buscar_depositos.py todas
+las mañanas y sube los ficheros nuevos al repositorio, así que esta app es
+un simple visor de solo lectura (sin botones) que siempre lee la última
+versión de depositos_activos.csv y analisis_estrategico.txt.
+
 Requiere: pip install streamlit pandas
 Lanzar en local: streamlit run app_web_depositos.py
 """
 
-import contextlib
 import html
-import io
 import re
-import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -27,15 +30,6 @@ CARPETA = Path(__file__).resolve().parent
 CSV_PATH = CARPETA / "depositos_activos.csv"
 INFORME_PATH = CARPETA / "analisis_estrategico.txt"
 
-# Se importa el backend en el mismo proceso (en vez de lanzarlo con
-# subprocess) porque muchos servidores Linux gratuitos (Streamlit Cloud,
-# Hugging Face Spaces, etc.) restringen o bloquean por permisos la creación
-# de procesos hijos. Importándolo evitamos ese bloqueo por completo: no se
-# abre ningún proceso nuevo, solo se llama a una función de Python.
-if str(CARPETA) not in sys.path:
-    sys.path.insert(0, str(CARPETA))
-import buscar_depositos as backend  # noqa: E402 - necesita CARPETA en sys.path antes
-
 ICONOS_SECCION = {"1": "📈", "2": "🎯", "3": "🪜", "4": "🏆"}
 
 st.set_page_config(
@@ -48,101 +42,183 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    :root {
+        --bp-verde: #22c55e;
+        --bp-verde-oscuro: #15803d;
+        --bp-azul: #3b82f6;
+        --bp-azul-oscuro: #1d4ed8;
+        --bp-fondo-tarjeta: linear-gradient(160deg, #1a2029 0%, #10141b 100%);
+        --bp-borde: rgba(255,255,255,0.09);
+        --bp-texto: #f3f5f7;
+        --bp-texto-tenue: #9aa4b2;
+    }
+
     .block-container {
-        padding-top: 1.3rem;
+        padding-top: 1.4rem;
         padding-bottom: 3rem;
-        padding-left: 1.5rem;
-        padding-right: 1.5rem;
-        max-width: 900px;
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+        max-width: 920px;
         margin-left: auto;
         margin-right: auto;
     }
-    .bp-titulo {
-        font-size: clamp(1.5rem, 6vw, 2.1rem);
-        font-weight: 800;
-        margin-bottom: 0.15rem;
-        line-height: 1.2;
-    }
-    .bp-subtitulo {
-        font-weight: 400;
-        font-size: 0.5em;
-        color: #9aa4b2;
-        display: block;
-        margin-top: 0.15rem;
-    }
-    div.stButton > button {
-        height: 3.3rem;
-        font-size: 1.05rem;
-        font-weight: 700;
-        border-radius: 14px;
-    }
-    div[data-testid="stMetric"] {
-        background: #161b22;
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 14px;
-        padding: 0.6rem 0.4rem;
-    }
-    .bp-card {
-        background: linear-gradient(150deg, #161b22 0%, #0d1117 100%);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 18px;
-        padding: 1.1rem 1.3rem;
-        margin-bottom: 0.9rem;
-        box-shadow: 0 4px 18px rgba(0,0,0,0.28);
-    }
-    .bp-card-header {
+
+    /* ---------- Cabecera corporativa (a prueba de recortes en móvil) ---------- */
+    .bp-header {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        gap: 0.5rem;
+        gap: 1rem;
+        flex-wrap: wrap;
         margin-bottom: 0.4rem;
     }
-    .bp-card-banco {
-        font-weight: 600;
-        font-size: 1rem;
-        line-height: 1.3;
+    .bp-header-badge {
+        flex: 0 0 auto;
+        width: 3.4rem;
+        height: 3.4rem;
+        border-radius: 18px;
+        background: linear-gradient(135deg, var(--bp-verde), var(--bp-verde-oscuro));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        box-shadow: 0 8px 18px rgba(34,197,94,0.35);
     }
-    .bp-badge {
-        font-size: 0.68rem;
-        padding: 0.15rem 0.55rem;
-        border-radius: 999px;
-        background: rgba(255,255,255,0.08);
-        color: #9aa4b2;
-        white-space: nowrap;
-        flex-shrink: 0;
+    .bp-header-text {
+        min-width: 0;
+        flex: 1 1 240px;
     }
-    .bp-card-tae {
-        font-size: clamp(2.1rem, 9vw, 2.6rem);
+    .bp-header-title {
+        font-size: clamp(1.35rem, 5vw, 2rem);
         font-weight: 800;
-        line-height: 1;
-        margin: 0.3rem 0 0.75rem 0;
-        color: #22c55e;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+        color: var(--bp-texto);
+        margin: 0;
+        overflow-wrap: break-word;
     }
-    .bp-card-tae-simbolo {
-        font-size: 0.36em;
+    .bp-header-subtitle {
+        font-size: clamp(0.72rem, 2.6vw, 0.9rem);
+        font-weight: 700;
+        color: var(--bp-verde);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-top: 0.15rem;
+    }
+    .bp-auto-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        color: #9aa4b2;
-        margin-left: 0.3rem;
+        color: var(--bp-texto-tenue);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--bp-borde);
+        border-radius: 999px;
+        padding: 0.35rem 0.8rem;
+        margin: 1rem 0 0.6rem 0;
     }
-    .bp-card-footer {
+
+    /* ---------- KPIs ---------- */
+    div[data-testid="stMetric"] {
+        background: var(--bp-fondo-tarjeta);
+        border: 1px solid var(--bp-borde);
+        border-radius: 16px;
+        padding: 0.7rem 0.5rem;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    }
+
+    /* ---------- Tarjetas de depósito ---------- */
+    .bp-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        background: var(--bp-fondo-tarjeta);
+        border: 1px solid var(--bp-borde);
+        border-radius: 22px;
+        padding: 1.2rem 1.3rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 12px 26px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .bp-card-info {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+    .bp-card-banco {
+        font-weight: 700;
+        font-size: 1.02rem;
+        color: var(--bp-texto);
+        margin: 0 0 0.55rem 0;
+        overflow-wrap: break-word;
+    }
+    .bp-card-tags {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.5rem;
+        gap: 0.4rem;
+        margin-bottom: 0.5rem;
     }
     .bp-chip {
-        font-size: 0.78rem;
-        padding: 0.3rem 0.65rem;
+        font-size: 0.72rem;
+        padding: 0.28rem 0.65rem;
         border-radius: 999px;
-        background: rgba(34,197,94,0.15);
-        color: #22c55e;
+        background: rgba(34,197,94,0.14);
+        color: #4ade80;
         font-weight: 600;
+        white-space: nowrap;
     }
+    .bp-chip-outline {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.16);
+        color: var(--bp-texto-tenue);
+    }
+    .bp-card-fuente {
+        font-size: 0.65rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Círculo de TAE llamativo, a la derecha de la tarjeta */
+    .bp-circulo {
+        flex: 0 0 auto;
+        width: 5.6rem;
+        height: 5.6rem;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        line-height: 1;
+    }
+    .bp-circulo-alta {
+        background: radial-gradient(circle at 30% 28%, #86efac, #15803d 75%);
+        color: #052e16;
+        box-shadow: 0 8px 20px rgba(21,128,61,0.5), inset 0 2px 6px rgba(255,255,255,0.3);
+    }
+    .bp-circulo-normal {
+        background: radial-gradient(circle at 30% 28%, #93c5fd, #1d4ed8 75%);
+        color: #0b1220;
+        box-shadow: 0 8px 20px rgba(29,78,216,0.45), inset 0 2px 6px rgba(255,255,255,0.25);
+    }
+    .bp-circulo-valor {
+        font-size: 1.3rem;
+        font-weight: 800;
+    }
+    .bp-circulo-simbolo {
+        font-size: 0.56rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        margin-top: 0.2rem;
+    }
+
+    /* ---------- Informe del Asesor Financiero ---------- */
     .bp-informe-body {
         white-space: pre-wrap;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 0.85rem;
         line-height: 1.55;
-        color: #e6edf3;
+        color: var(--bp-texto);
     }
     </style>
     """,
@@ -206,54 +282,45 @@ def parsear_informe(texto: str):
 
 
 # ---------------------------------------------------------------------------
-# Cabecera
+# Cabecera corporativa
 # ---------------------------------------------------------------------------
 st.markdown(
-    '<div class="bp-titulo">🏦 Depósitos BP<span class="bp-subtitulo">| Tu Renta Fija Real</span></div>',
+    """
+    <div class="bp-header">
+      <div class="bp-header-badge">🏦</div>
+      <div class="bp-header-text">
+        <p class="bp-header-title">Depósitos BP</p>
+        <p class="bp-header-subtitle">Tu Renta Fija Real</p>
+      </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
-# ---------------------------------------------------------------------------
-# Botón de actualización (ejecuta el backend y refresca la web)
-# ---------------------------------------------------------------------------
-if st.button("🔄 Actualizar Datos del Mercado", use_container_width=True, type="primary"):
-    with st.status("Consultando Rankia y Tesoro Público...", expanded=True) as status:
-        buffer_salida = io.StringIO()
-        try:
-            with contextlib.redirect_stdout(buffer_salida):
-                backend.main()
-            status.update(label="Datos actualizados correctamente", state="complete")
-        except SystemExit as exc:
-            # backend.main() llama a sys.exit(1) si no encuentra ningún resultado.
-            codigo = exc.code if isinstance(exc.code, int) else 1
-            if codigo == 0:
-                status.update(label="Datos actualizados correctamente", state="complete")
-            else:
-                status.update(label="Error al actualizar los datos", state="error")
-        except Exception as exc:  # noqa: BLE001 - se muestra cualquier fallo al usuario
-            status.update(label="Error al actualizar los datos", state="error")
-            st.error(f"{type(exc).__name__}: {exc}")
-        finally:
-            salida = buffer_salida.getvalue()
-            if salida:
-                st.code(salida)
-    st.cache_data.clear()
-    st.rerun()
-
 ultima_actualizacion = (
-    datetime.fromtimestamp(CSV_PATH.stat().st_mtime).strftime("%d/%m/%Y %H:%M")
+    datetime.fromtimestamp(CSV_PATH.stat().st_mtime).strftime("%d/%m/%Y a las %H:%M")
     if CSV_PATH.exists()
-    else "todavía sin datos"
+    else None
 )
-st.caption(f"Última actualización: {ultima_actualizacion}")
+if ultima_actualizacion:
+    st.markdown(
+        f'<div class="bp-auto-badge">🕘 Actualización automática diaria a las 09:00 '
+        f'(España) &middot; última: {ultima_actualizacion}</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        '<div class="bp-auto-badge">🕘 Actualización automática diaria a las 09:00 (España)</div>',
+        unsafe_allow_html=True,
+    )
 
 df = cargar_datos(_mtime_o_cero(CSV_PATH))
 informe_texto = cargar_informe(_mtime_o_cero(INFORME_PATH))
 
 if df is None or df.empty:
     st.warning(
-        "Todavía no hay datos guardados. Pulsa **🔄 Actualizar Datos del Mercado** "
-        "para generarlos por primera vez."
+        "Todavía no hay datos guardados. Se generarán automáticamente en la "
+        "próxima ejecución programada (09:00, hora de España)."
     )
     st.stop()
 
@@ -283,25 +350,29 @@ with tab_mercado:
     df_mostrar = df_mostrar.sort_values("TAE (%)", ascending=False)
 
     for _, fila in df_mostrar.iterrows():
-        icono = "🏛️" if fila["Fuente"] == "Tesoro Público" else "🏦"
+        icono = "🏛️" if str(fila["Fuente"]).startswith("Tesoro") else "🏦"
         tae = fila["TAE (%)"]
         plazo = fila["Plazo (meses)"]
         plazo_txt = f"⏳ {plazo:.0f} meses" if pd.notna(plazo) else "⏳ Plazo no especificado"
         garantia = html.escape(str(fila["País del Fondo de Garantía"]))
         banco = html.escape(str(fila["Banco"]))
         fuente = html.escape(str(fila["Fuente"]))
+        clase_circulo = "bp-circulo-alta" if tae >= 3 else "bp-circulo-normal"
 
         st.markdown(
             f"""
             <div class="bp-card">
-              <div class="bp-card-header">
-                <span class="bp-card-banco">{icono} {banco}</span>
-                <span class="bp-badge">{fuente}</span>
+              <div class="bp-card-info">
+                <p class="bp-card-banco">{icono} {banco}</p>
+                <div class="bp-card-tags">
+                  <span class="bp-chip">{plazo_txt}</span>
+                  <span class="bp-chip bp-chip-outline">🛡️ {garantia}</span>
+                </div>
+                <span class="bp-card-fuente">{fuente}</span>
               </div>
-              <div class="bp-card-tae">{tae:.2f}<span class="bp-card-tae-simbolo">% TAE</span></div>
-              <div class="bp-card-footer">
-                <span class="bp-chip">{plazo_txt}</span>
-                <span class="bp-chip">🛡️ {garantia}</span>
+              <div class="bp-circulo {clase_circulo}">
+                <span class="bp-circulo-valor">{tae:.2f}%</span>
+                <span class="bp-circulo-simbolo">TAE</span>
               </div>
             </div>
             """,
@@ -313,10 +384,7 @@ with tab_mercado:
 # ---------------------------------------------------------------------------
 with tab_asesor:
     if not informe_texto:
-        st.warning(
-            "Todavía no se ha generado el informe. Pulsa "
-            "**🔄 Actualizar Datos del Mercado** para crearlo."
-        )
+        st.warning("Todavía no se ha generado el informe de estrategia.")
     else:
         cabecera, secciones = parsear_informe(informe_texto)
 
