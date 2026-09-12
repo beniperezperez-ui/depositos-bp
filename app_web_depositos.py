@@ -8,9 +8,10 @@ Requiere: pip install streamlit pandas
 Lanzar en local: streamlit run app_web_depositos.py
 """
 
+import contextlib
 import html
+import io
 import re
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -25,14 +26,22 @@ except ImportError as exc:
 CARPETA = Path(__file__).resolve().parent
 CSV_PATH = CARPETA / "depositos_activos.csv"
 INFORME_PATH = CARPETA / "analisis_estrategico.txt"
-SCRIPT_BACKEND = CARPETA / "buscar_depositos.py"
+
+# Se importa el backend en el mismo proceso (en vez de lanzarlo con
+# subprocess) porque muchos servidores Linux gratuitos (Streamlit Cloud,
+# Hugging Face Spaces, etc.) restringen o bloquean por permisos la creación
+# de procesos hijos. Importándolo evitamos ese bloqueo por completo: no se
+# abre ningún proceso nuevo, solo se llama a una función de Python.
+if str(CARPETA) not in sys.path:
+    sys.path.insert(0, str(CARPETA))
+import buscar_depositos as backend  # noqa: E402 - necesita CARPETA en sys.path antes
 
 ICONOS_SECCION = {"1": "📈", "2": "🎯", "3": "🪜", "4": "🏆"}
 
 st.set_page_config(
     page_title="Depósitos BP",
     page_icon="🏦",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed",
 )
 
@@ -42,7 +51,11 @@ st.markdown(
     .block-container {
         padding-top: 1.3rem;
         padding-bottom: 3rem;
-        max-width: 640px;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+        max-width: 900px;
+        margin-left: auto;
+        margin-right: auto;
     }
     .bp-titulo {
         font-size: clamp(1.5rem, 6vw, 2.1rem);
@@ -205,24 +218,25 @@ st.markdown(
 # ---------------------------------------------------------------------------
 if st.button("🔄 Actualizar Datos del Mercado", use_container_width=True, type="primary"):
     with st.status("Consultando Rankia y Tesoro Público...", expanded=True) as status:
+        buffer_salida = io.StringIO()
         try:
-            resultado = subprocess.run(
-                [sys.executable, str(SCRIPT_BACKEND)],
-                cwd=str(CARPETA),
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            if resultado.stdout:
-                st.code(resultado.stdout)
-            if resultado.returncode != 0:
-                status.update(label="Error al actualizar los datos", state="error")
-                st.error(resultado.stderr or "El script terminó con un error.")
-            else:
+            with contextlib.redirect_stdout(buffer_salida):
+                backend.main()
+            status.update(label="Datos actualizados correctamente", state="complete")
+        except SystemExit as exc:
+            # backend.main() llama a sys.exit(1) si no encuentra ningún resultado.
+            codigo = exc.code if isinstance(exc.code, int) else 1
+            if codigo == 0:
                 status.update(label="Datos actualizados correctamente", state="complete")
+            else:
+                status.update(label="Error al actualizar los datos", state="error")
         except Exception as exc:  # noqa: BLE001 - se muestra cualquier fallo al usuario
             status.update(label="Error al actualizar los datos", state="error")
-            st.error(str(exc))
+            st.error(f"{type(exc).__name__}: {exc}")
+        finally:
+            salida = buffer_salida.getvalue()
+            if salida:
+                st.code(salida)
     st.cache_data.clear()
     st.rerun()
 
