@@ -10,6 +10,11 @@ Incorpora siempre los tipos vigentes de las Letras del Tesoro español (3, 6,
 guarda todo en depositos_activos.csv (separado por punto y coma) y genera un
 informe de estrategia de ahorro en analisis_estrategico.txt.
 
+Si el scraping en vivo falla o tarda demasiado (típico en producción, por
+firewalls o restricciones de red del servidor), se usa como respaldo una
+lista de datos reales fijados en septiembre de 2026 (ver DATOS_RESPALDO),
+de forma que la app nunca se quede sin datos.
+
 Requiere: pip install requests beautifulsoup4
 """
 
@@ -50,6 +55,7 @@ HEADERS = {
 }
 TIMEOUT = 20
 PAUSA_ENTRE_PETICIONES = 1.0
+TIEMPO_MAXIMO_RANKIA = 60  # segundos; pasado este tiempo se corta la búsqueda en Rankia
 
 RANKIA_COMPARADOR_URL = "https://www.rankia.com/depositos/comparador"
 PAISES_FGD_ESPANA = ("españa", "espana")
@@ -77,6 +83,50 @@ PALABRAS_EXCLUIDAS_CONDICIONES = (
     "suscripción de",
     "vinculac",
 )
+
+# Datos reales fijados en septiembre de 2026, usados como respaldo cuando el
+# scraping en vivo de Rankia o del Tesoro Público falla o tarda demasiado
+# (p. ej. por un firewall en el servidor de producción). Se etiquetan con
+# "(respaldo)" en la columna Fuente para distinguirlos de los datos en vivo.
+# OJO: son una foto fija de septiembre de 2026; conviene revisarlos de vez en
+# cuando para que no queden muy desactualizados.
+DATOS_RESPALDO = [
+    {
+        "Banco": "Letras del Tesoro (España) - 12 meses",
+        "Plazo (meses)": 12,
+        "TAE (%)": 2.84,
+        "País del Fondo de Garantía": GARANTIA_LETRAS,
+        "Fuente": "Tesoro Público (respaldo)",
+    },
+    {
+        "Banco": "Letras del Tesoro (España) - 6 meses",
+        "Plazo (meses)": 6,
+        "TAE (%)": 2.64,
+        "País del Fondo de Garantía": "Garantía del Estado Español",
+        "Fuente": "Tesoro Público (respaldo)",
+    },
+    {
+        "Banco": "Depósito WiZink 18 meses",
+        "Plazo (meses)": 18,
+        "TAE (%)": 2.85,
+        "País del Fondo de Garantía": "España",
+        "Fuente": "Rankia (respaldo)",
+    },
+    {
+        "Banco": "Depósito EBN Banco 24 meses",
+        "Plazo (meses)": 24,
+        "TAE (%)": 2.70,
+        "País del Fondo de Garantía": "España",
+        "Fuente": "Rankia (respaldo)",
+    },
+    {
+        "Banco": "Depósito Banca March 12 meses",
+        "Plazo (meses)": 12,
+        "TAE (%)": 2.50,
+        "País del Fondo de Garantía": "España",
+        "Fuente": "Rankia (respaldo)",
+    },
+]
 
 
 def normaliza_tae(texto):
@@ -203,8 +253,15 @@ def obtener_depositos_rankia(sesion):
         f"{RIESGO_OBJETIVO}, garantía España y TAE > {TAE_MINIMA}%..."
     )
 
+    inicio = time.monotonic()
     candidatos = []
     for pagina in range(1, total_paginas + 1):
+        if time.monotonic() - inicio > TIEMPO_MAXIMO_RANKIA:
+            print(
+                f"  Aviso: se ha superado el tiempo máximo de búsqueda "
+                f"({TIEMPO_MAXIMO_RANKIA}s) en la página {pagina}; se corta aquí."
+            )
+            break
         if pagina == 1:
             html = primera.text
         else:
@@ -254,6 +311,12 @@ def obtener_depositos_rankia(sesion):
 
     excluidos_vinculados = 0
     for candidato in candidatos:
+        if time.monotonic() - inicio > TIEMPO_MAXIMO_RANKIA:
+            print(
+                f"  Aviso: se ha superado el tiempo máximo de búsqueda "
+                f"({TIEMPO_MAXIMO_RANKIA}s); se deja de verificar fichas restantes."
+            )
+            break
         time.sleep(PAUSA_ENTRE_PETICIONES)
         es_puro, banco = _obtener_detalle_producto_rankia(
             sesion, candidato["url"], candidato["nombre_producto"]
@@ -418,6 +481,16 @@ def generar_informe_estrategico(registros, tendencia_letras, ruta_salida):
     )
     lineas.append("")
 
+    fuentes_respaldo = sorted({r["Fuente"] for r in registros if "(respaldo)" in r["Fuente"]})
+    if fuentes_respaldo:
+        lineas.append(
+            "⚠️ Aviso: no se pudo conectar en directo con: " + ", ".join(fuentes_respaldo) + ".\n"
+            "Se están mostrando datos de referencia fijados en septiembre de 2026,\n"
+            "que pueden no reflejar el mercado en este momento. Pulsa de nuevo\n"
+            "'Actualizar Datos del Mercado' más tarde para reintentar la conexión en vivo."
+        )
+        lineas.append("")
+
     lineas.append("-" * 72)
     lineas.append("1. TENDENCIA ACTUAL DE LOS TIPOS DE INTERÉS")
     lineas.append("-" * 72)
@@ -525,7 +598,7 @@ def generar_informe_estrategico(registros, tendencia_letras, ruta_salida):
     lineas.append("-" * 72)
     lineas.append("4. RESUMEN DE LAS 10 MEJORES OFERTAS DISPONIBLES (todos los plazos)")
     lineas.append("-" * 72)
-    if not any(r["Fuente"] == "Rankia" for r in registros):
+    if not any(r["Fuente"].startswith("Rankia") and r["TAE (%)"] > TAE_MINIMA for r in registros):
         lineas.append(
             "Nota: en la fecha de este informe ningún depósito bancario español\n"
             "puro (sin vinculaciones a fondos, seguros o planes de pensiones) supera\n"
@@ -576,11 +649,25 @@ def main():
     sesion = requests.Session()
     sesion.headers.update(HEADERS)
 
-    depositos = []
-    depositos += obtener_depositos_rankia(sesion)
+    depositos_rankia = obtener_depositos_rankia(sesion)
+    if not depositos_rankia:
+        respaldo_rankia = [d for d in DATOS_RESPALDO if d["Fuente"].startswith("Rankia")]
+        print(
+            f"  Aviso: no se obtuvo ningún depósito en vivo de Rankia; se usan "
+            f"{len(respaldo_rankia)} datos de respaldo (septiembre 2026)."
+        )
+        depositos_rankia = respaldo_rankia
 
     letras, tendencia_letras = obtener_letras_tesoro(sesion)
-    depositos += letras
+    if not letras:
+        letras = [d for d in DATOS_RESPALDO if d["Fuente"].startswith("Tesoro")]
+        tendencia_letras = {}
+        print(
+            f"  Aviso: no se obtuvieron Letras del Tesoro en vivo; se usan "
+            f"{len(letras)} datos de respaldo (septiembre 2026)."
+        )
+
+    depositos = depositos_rankia + letras
 
     if not depositos:
         print("No se ha encontrado ningún depósito ni letra que cumpla los criterios.")
