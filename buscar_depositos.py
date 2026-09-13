@@ -38,11 +38,14 @@ try:
     # tesoro.es usa una cadena de certificados que el bundle de certifi no
     # siempre reconoce en Windows, aunque el almacén de certificados del
     # propio sistema sí la valida. Si está disponible, se usa ese almacén
-    # nativo para evitar falsos "SSLCertVerificationError".
+    # nativo para evitar falsos "SSLCertVerificationError". Se captura
+    # cualquier excepción (no solo ImportError): esto es una mejora opcional
+    # y nunca debe poder tumbar el script en un servidor donde se comporte
+    # de forma distinta (p. ej. un runner Linux de GitHub Actions).
     import truststore
 
     truststore.inject_into_ssl()
-except ImportError:
+except Exception:
     pass
 
 TAE_MINIMA = 3.0
@@ -649,7 +652,15 @@ def main():
     sesion = requests.Session()
     sesion.headers.update(HEADERS)
 
-    depositos_rankia = obtener_depositos_rankia(sesion)
+    # Cada fuente va envuelta en su propio try/except: un fallo inesperado en
+    # una (p. ej. un cambio en el HTML del sitio, o un bloqueo de red distinto
+    # a los ya controlados con requests.RequestException) nunca debe tumbar
+    # todo el script, sino recurrir al respaldo de esa fuente y seguir.
+    try:
+        depositos_rankia = obtener_depositos_rankia(sesion)
+    except Exception as exc:  # noqa: BLE001 - cualquier fallo cae al respaldo
+        print(f"  Aviso: fallo inesperado consultando Rankia ({type(exc).__name__}: {exc}).")
+        depositos_rankia = []
     if not depositos_rankia:
         respaldo_rankia = [d for d in DATOS_RESPALDO if d["Fuente"].startswith("Rankia")]
         print(
@@ -658,7 +669,11 @@ def main():
         )
         depositos_rankia = respaldo_rankia
 
-    letras, tendencia_letras = obtener_letras_tesoro(sesion)
+    try:
+        letras, tendencia_letras = obtener_letras_tesoro(sesion)
+    except Exception as exc:  # noqa: BLE001 - cualquier fallo cae al respaldo
+        print(f"  Aviso: fallo inesperado consultando el Tesoro Público ({type(exc).__name__}: {exc}).")
+        letras, tendencia_letras = [], {}
     if not letras:
         letras = [d for d in DATOS_RESPALDO if d["Fuente"].startswith("Tesoro")]
         tendencia_letras = {}
@@ -670,14 +685,23 @@ def main():
     depositos = depositos_rankia + letras
 
     if not depositos:
-        print("No se ha encontrado ningún depósito ni letra que cumpla los criterios.")
+        # Red de seguridad final: en la práctica nunca debería llegar aquí,
+        # porque DATOS_RESPALDO siempre aporta registros para ambas fuentes.
+        print("  Aviso: no había ningún dato disponible; se usa el respaldo completo.")
+        depositos = list(DATOS_RESPALDO)
+
+    try:
+        finales = guardar_csv(depositos, salida_csv)
+        print(f"\nGuardados {len(finales)} registros en: {salida_csv}")
+    except OSError as exc:
+        print(f"Error: no se pudo escribir {salida_csv} ({exc}).")
         sys.exit(1)
 
-    finales = guardar_csv(depositos, salida_csv)
-    print(f"\nGuardados {len(finales)} registros en: {salida_csv}")
-
-    generar_informe_estrategico(finales, tendencia_letras, salida_informe)
-    print(f"Informe de estrategia generado en: {salida_informe}")
+    try:
+        generar_informe_estrategico(finales, tendencia_letras, salida_informe)
+        print(f"Informe de estrategia generado en: {salida_informe}")
+    except Exception as exc:  # noqa: BLE001 - el CSV ya se guardó; no se debe fallar por el informe
+        print(f"  Aviso: no se pudo generar el informe de estrategia ({type(exc).__name__}: {exc}).")
 
 
 if __name__ == "__main__":
