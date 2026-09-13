@@ -16,6 +16,8 @@ permissions:
 
 jobs:
   actualizar:
+      permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Comprobar si son las 09:00 en España ahora mismo
