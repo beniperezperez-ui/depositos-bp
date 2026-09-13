@@ -1,0 +1,72 @@
+========================================================================
+INFORME DE ESTRATEGIA DE AHORRO - DEPÓSITOS Y LETRAS DEL TESORO
+Generado automáticamente el 13/09/2026 00:21
+========================================================================
+
+AVISO: informe automático orientativo generado a partir de datos públicos
+de mercado (Rankia y Tesoro Público), limitado a bancos que operan en
+España y depósitos a plazo fijo puros. No es asesoramiento financiero
+profesional ni una recomendación de inversión personalizada; valora tu
+propia situación fiscal y de liquidez antes de decidir.
+
+⚠️ Aviso: no se pudo conectar en directo con: Rankia (respaldo), Tesoro Público (respaldo).
+Se están mostrando datos de referencia fijados en septiembre de 2026,
+que pueden no reflejar el mercado en este momento. Pulsa de nuevo
+'Actualizar Datos del Mercado' más tarde para reintentar la conexión en vivo.
+
+------------------------------------------------------------------------
+1. TENDENCIA ACTUAL DE LOS TIPOS DE INTERÉS
+------------------------------------------------------------------------
+Base: tipo marginal de la última subasta de Letras del Tesoro frente al
+de la subasta inmediatamente anterior, para cada plazo.
+
+  No se pudo obtener la comparación con la subasta anterior.
+
+Diagnóstico: los tipos de interés están ESTABLES (variación media +0.000 p.p., dentro del margen de ruido).
+
+------------------------------------------------------------------------
+2. RECOMENDACIÓN DE PLAZO
+------------------------------------------------------------------------
+Con tipos estables no hay una ventaja clara de plazo por tendencia:
+mantener una escalera equilibrada entre plazos cortos y largos es la
+opción más prudente.
+
+------------------------------------------------------------------------
+3. ESTRATEGIA DE LA ESCALERA (LADDERING) - SEPTIEMBRE 2026
+------------------------------------------------------------------------
+La escalera reparte el capital entre varios plazos en vez de ponerlo
+todo a un único vencimiento: siempre queda una parte liberándose pronto
+(liquidez y capacidad de reinversión) y otra parte aprovechando el tipo
+más alto de los plazos largos, sin depender de acertar el momento exacto
+del mercado.
+
+Escalera equilibrada a partes iguales, por tendencia estable/indeterminada.
+
+Ejemplo de reparto sobre un capital ilustrativo de 10.000 €
+(ajusta las cantidades de forma proporcional a tu capital real):
+
+  - 25% (2.500 €) a 3 meses
+      No se ha encontrado ninguna oferta activa para este plazo exacto.
+  - 25% (2.500 €) a 6 meses
+      Mejor opción actual: Letras del Tesoro (España) - 6 meses - 2.64% TAE (Tesoro Público (respaldo), garantía: Garantía del Estado Español)
+  - 25% (2.500 €) a 12 meses
+      Mejor opción actual: Letras del Tesoro (España) - 12 meses - 2.84% TAE (Tesoro Público (respaldo), garantía: Garantía del Estado Español)
+  - 25% (2.500 €) a 24 meses
+      Mejor opción actual: Depósito EBN Banco 24 meses - 2.7% TAE (Rankia (respaldo), garantía: España)
+
+------------------------------------------------------------------------
+4. RESUMEN DE LAS 10 MEJORES OFERTAS DISPONIBLES (todos los plazos)
+------------------------------------------------------------------------
+Nota: en la fecha de este informe ningún depósito bancario español
+puro (sin vinculaciones a fondos, seguros o planes de pensiones) supera
+el 3% TAE con el Fondo de Garantía de Depósitos español. Por eso todas
+las 'mejores opciones' de este informe son Letras del Tesoro, que hoy
+ofrecen más rentabilidad que los depósitos puros disponibles.
+
+   2.85% TAE |  18 meses | Depósito WiZink 18 meses (Rankia (respaldo), España)
+   2.84% TAE |  12 meses | Letras del Tesoro (España) - 12 meses (Tesoro Público (respaldo), Garantía del Estado Español)
+   2.70% TAE |  24 meses | Depósito EBN Banco 24 meses (Rankia (respaldo), España)
+   2.64% TAE |   6 meses | Letras del Tesoro (España) - 6 meses (Tesoro Público (respaldo), Garantía del Estado Español)
+   2.50% TAE |  12 meses | Depósito Banca March 12 meses (Rankia (respaldo), España)
+
+========================================================================
