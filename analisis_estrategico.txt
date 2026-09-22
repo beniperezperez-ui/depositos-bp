@@ -1,6 +1,6 @@
 ========================================================================
 INFORME DE ESTRATEGIA DE AHORRO - DEPÓSITOS Y LETRAS DEL TESORO
-Generado automáticamente el 21/09/2026 14:52
+Generado automáticamente el 22/09/2026 12:31
 ========================================================================
 
 AVISO: informe automático orientativo generado a partir de datos públicos
@@ -50,14 +50,14 @@ Ejemplo de reparto sobre un capital ilustrativo de 10.000 €
   - 25% (2.500 €) a 6 meses
       Mejor opción actual: Letras del Tesoro (España) - 6 meses - 2.64% TAE (Tesoro Público (respaldo), garantía: Garantía del Estado Español)
   - 25% (2.500 €) a 12 meses
-      Mejor opción actual: Myinvestor - 3.5% TAE (Rankia, garantía: España)
+      Mejor opción actual: Myinvestor - 3.1% TAE (Rankia, garantía: España)
   - 25% (2.500 €) a 24 meses
       No se ha encontrado ninguna oferta activa para este plazo exacto.
 
 ------------------------------------------------------------------------
 4. RESUMEN DE LAS 10 MEJORES OFERTAS DISPONIBLES (todos los plazos)
 ------------------------------------------------------------------------
-   3.50% TAE |  12 meses | Myinvestor (Rankia, España)
+   3.10% TAE |  12 meses | Myinvestor (Rankia, España)
    2.84% TAE |  12 meses | Letras del Tesoro (España) - 12 meses (Tesoro Público (respaldo), Garantía del Estado Español)
    2.64% TAE |   6 meses | Letras del Tesoro (España) - 6 meses (Tesoro Público (respaldo), Garantía del Estado Español)
 
